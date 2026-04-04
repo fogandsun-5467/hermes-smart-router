@@ -203,6 +203,10 @@ class RouterEngine:
         # 加载已有经验
         load_memory_entries(memory_file)
 
+        # 模型切换提醒状态
+        self._is_first_call = True  # 首次调用标记
+        self._last_decision = None  # 上一次的决策
+
     async def judge(self, message: str) -> Tuple[str, str, Dict[str, Any]]:
         """
         执行五层判断。
@@ -333,8 +337,36 @@ class RouterEngine:
         }
 
     def get_routing_hint(self, final_decision: str, details: Dict[str, Any]) -> str:
-        """生成路由提示，用于注入到 system prompt"""
-        if final_decision == "strong":
-            return "【智能路由】当前任务复杂度较高，建议使用专家模型以获得最佳回答质量。"
+        """
+        生成路由提示，用于注入到 system prompt。
+        
+        规则：
+        - 首次调用：显示完整提示
+        - 同一模型：只显示emoji (🧠专家/⚡轻量)
+        - 切换模型：显示"当前任务已切换至xxx"
+        """
+        model_names = {
+            "strong": "专家模型(glm-5.1)",
+            "cheap": "轻量模型(MiniMax-M2.7)"
+        }
+        
+        current_model = model_names.get(final_decision, final_decision)
+        emoji = "🧠" if final_decision == "strong" else "⚡"
+        
+        if self._is_first_call:
+            # 首次调用，显示完整提示
+            self._is_first_call = False
+            self._last_decision = final_decision
+            if final_decision == "strong":
+                return "🧠 【智能路由】当前任务复杂度较高，使用专家模型以获得最佳回答质量。"
+            else:
+                return "⚡ 【智能路由】当前任务相对简单，使用轻量模型即可高效回答。"
+        
+        if final_decision == self._last_decision:
+            # 同一模型，只显示emoji
+            return emoji
         else:
-            return "【智能路由】当前任务相对简单，使用轻量模型即可高效回答。"
+            # 切换模型
+            prev_model = model_names.get(self._last_decision, self._last_decision)
+            self._last_decision = final_decision
+            return f"🔄 【智能路由】当前任务已切换至{current_model}"
