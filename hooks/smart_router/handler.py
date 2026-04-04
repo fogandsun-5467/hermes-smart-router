@@ -5,7 +5,6 @@ Smart Router Gateway Hook Handler
 通过文件进行跨进程通信。
 """
 
-import asyncio
 import json
 import logging
 import os
@@ -52,11 +51,9 @@ def get_routing_decision() -> Optional[Dict[str, Any]]:
     
     with _lock:
         try:
-            # 检查文件是否来自当前进程
             with open(_decision_file, "r") as f:
                 data = json.load(f)
             
-            # 如果文件来自其他进程（旧的决策），忽略
             if data.get("pid") == os.getpid():
                 return data
             else:
@@ -84,6 +81,8 @@ def _apply_router_patch():
     """
     应用 resolve_turn_route 的 monkey patch。
     这个 patch 会检查 _routing_decision 并据此覆盖模型选择。
+    
+    注意：原始 resolve_turn_route 是同步函数，所以 patch 也必须是同步的。
     """
     global _patch_applied
     
@@ -95,13 +94,13 @@ def _apply_router_patch():
         from functools import wraps
         
         @wraps(_original_func)
-        async def _patched_resolve_turn_route(
+        def _patched_resolve_turn_route(
             user_message: str,
             routing_config: Any,
             primary: Dict[str, Any]
         ) -> Dict[str, Any]:
             # 调用原始函数获取基础配置
-            result = await _original_func(user_message, routing_config, primary)
+            result = _original_func(user_message, routing_config, primary)
             
             # 检查是否有路由决策（从文件读取）
             decision_data = get_routing_decision()
