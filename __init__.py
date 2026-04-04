@@ -13,12 +13,17 @@ Smart Router Plugin for Hermes
 
 import logging
 import os
+import json
+import tempfile
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 # 全局路由引擎实例
 _router_engine: Optional[Any] = None
+
+# 跨进程通信文件路径（与 hook 共享）
+_decision_file = os.path.join(tempfile.gettempdir(), "hermes_smart_router_decision.json")
 
 
 def register(ctx: Any) -> None:
@@ -85,6 +90,17 @@ def pre_llm_call(
 
     # 生成路由提示
     hint = _router_engine.get_routing_hint(final_decision, details)
+
+    # 写入决策文件（供 Gateway Hook 跨进程读取）
+    try:
+        with open(_decision_file, "w") as f:
+            json.dump({
+                "decision": final_decision,
+                "details": details,
+                "pid": os.getpid()
+            }, f)
+    except Exception as e:
+        logger.warning(f"Failed to write routing decision to file: {e}")
 
     logger.info(
         f"Routing decision: {final_decision} (reason={reason}, "
