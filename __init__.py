@@ -63,9 +63,12 @@ def register(ctx: Any) -> None:
 
 
 def pre_llm_call(
-    user_message: str,
     session_id: str,
-    config: Dict[str, Any],
+    user_message: str,
+    conversation_history: list = None,
+    is_first_turn: bool = False,
+    model: str = None,
+    platform: str = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -73,22 +76,34 @@ def pre_llm_call(
 
     在 LLM 调用前执行五层判断，返回路由决策和提示。
     
+    参数（Hermes 传入）：
+        session_id: 会话ID
+        user_message: 用户消息
+        conversation_history: 对话历史
+        is_first_turn: 是否是第一轮
+        model: 当前模型
+        platform: 平台
+    
     Returns:
         dict: 必须包含 'context' 键，其值会被添加到 ephemeral system prompt
     """
     global _router_engine
     import asyncio
 
-    # 如果还没有初始化（不应该发生，因为 register 已初始化），使用默认配置
+    # 如果还没有初始化，先初始化
     if _router_engine is None:
         from .router_engine import RouterEngine
         memory_dir = os.path.join(os.path.dirname(__file__), "..", "memories")
         memory_file = os.path.join(memory_dir, "MEMORY.md")
         os.makedirs(memory_dir, exist_ok=True)
+        
+        # 获取配置（从 kwargs 或默认）
+        config = kwargs.get('config', {}) or {}
+        
         _router_engine = RouterEngine(
             config=config,
             memory_file=memory_file,
-            call_provider_func=None
+            call_provider_func=None  # LLM调用在Agent进程中不可用，使用默认判断
         )
 
     # 执行五层判断（同步封装）

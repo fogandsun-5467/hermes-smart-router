@@ -36,17 +36,52 @@ META_FAST_PATTERNS = [
     r"把.*(代码|需求|报错|日志|信息).*(贴|发|给|丢|给我)",
     r"(把|将).*(代码|报错|信息).*(发|贴|给).*(看看|我看看|我看下|我看一眼)",
     # 选择问题（语言/技术选择）
-    r"(python|java|javascript|node|golang|rust|c\+\+|go|rust).*(还是|或|或者)",
-    r"(哪个|什么).*(语言|框架|技术)",
+    r"(python|java|javascript|node|golang|rust|c\+\+|go|rust).(还是|或|或者)",
+    r"(哪个|什么).(语言|框架|技术)",
     # 元级别问题
-    r"(你要|想要|准备).*(写|搞|做).*(哪块|什么|哪个).*(编程|代码|项目)",
-    r"(帮我|给我).*(看看|检查一下|看看这个|看看这个代码)",
+    r"(你要|想要|准备).(写|搞|做).(哪块|什么|哪个).(编程|代码|项目)",
+    r"(帮我|给我).(看看|检查一下|看看这个|看看这个代码)",
+]
+
+# ============================================================================
+# 复杂问题关键词（直接使用专家模型）
+# ============================================================================
+
+STRONG_PATTERNS = [
+    # 架构与系统设计
+    r"分布式|微服务|集群|负载均衡|容灾|备份",
+    r"架构(设计|图|方案|模式)|系统设计|系统架构",
+    r"中台|平台化|服务化|解耦",
+    # 算法与性能
+    r"算法(实现|优化|设计)|排序|搜索|图论",
+    r"并发|多线程|锁|同步|异步|队列",
+    r"性能(优化|调优)|QPS|TPS|吞吐量",
+    # 数据库
+    r"(数据库|表)设计|ER图|范式|索引优化|SQL优化",
+    r"分库分表|读写分离|主从复制|数据迁移",
+    # 协议与网络
+    r"TCP|UDP|HTTP|WebSocket|RPC|gRPC",
+    r"API(设计|接口)|RESTful|GraphQL",
+    # 安全与运维
+    r"安全(漏洞|加固|渗透)|加密|签名|认证",
+    r"监控|日志|告警|链路追踪|可观测性",
+    # 高级概念
+    r"区块链|AI|机器学习|深度学习|大模型",
+    r"设计模式|23种|单例|工厂|观察者",
 ]
 
 
 def is_meta_fast(message: str) -> bool:
     """检查是否命中 meta 快速模式"""
     for pattern in META_FAST_PATTERNS:
+        if re.search(pattern, message, re.IGNORECASE):
+            return True
+    return False
+
+
+def has_strong_keywords(message: str) -> bool:
+    """检查是否包含复杂问题关键词"""
+    for pattern in STRONG_PATTERNS:
         if re.search(pattern, message, re.IGNORECASE):
             return True
     return False
@@ -222,6 +257,39 @@ class RouterEngine:
                 "decision": "cheap",
                 "score": 0,
                 "category": "meta",
+            }
+
+        # ── 1.5层：复杂问题关键词（无需LLM，直接判断）─────
+        if has_strong_keywords(message):
+            logger.info(f"Strong keywords matched: {message[:50]}...")
+            # 复杂问题直接使用专家模型
+            decision = "strong"
+            category = "code"
+            score = 7  # 高复杂度默认分数
+            
+            # 记录到暂存区（用于形成经验）
+            keywords = extract_keywords(message)
+            record_decision(category, score, decision, keywords)
+            
+            # 异步写入经验
+            if should_form_experience(category, score, decision):
+                asyncio.create_task(write_experience_async(
+                    keywords, decision, "strong_keyword",
+                    score, category, self.memory_file
+                ))
+            
+            final_decision, override = peak_hours_gate(decision, score)
+            
+            # 更新上下文追踪
+            self.context_tracker.update(message, category, score, decision, "unrelated")
+            
+            return final_decision, "strong_keyword", {
+                "source": "strong_keyword",
+                "decision": decision,
+                "score": score,
+                "category": category,
+                "final_decision": final_decision,
+                "peak_override": override,
             }
 
         # ── 第二层：session 内上下文关系 ─────
