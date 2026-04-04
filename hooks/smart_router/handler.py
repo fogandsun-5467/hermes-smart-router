@@ -45,7 +45,11 @@ def set_routing_decision(decision: str, details: dict = None):
 
 
 def get_routing_decision() -> Optional[Dict[str, Any]]:
-    """获取路由决策（从文件读取）"""
+    """获取路由决策（从文件读取）
+    
+    注意：Agent 和 Gateway 是不同进程，不检查 PID。
+    文件内容由 Agent 写入，Gateway 读取。
+    """
     if not os.path.exists(_decision_file):
         return None
     
@@ -54,7 +58,7 @@ def get_routing_decision() -> Optional[Dict[str, Any]]:
             with open(_decision_file, "r") as f:
                 data = json.load(f)
             
-            if data.get("pid") == os.getpid():
+            if data.get("decision"):
                 return data
             else:
                 return None

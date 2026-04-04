@@ -79,9 +79,17 @@ def pre_llm_call(
     global _router_engine
     import asyncio
 
-    # 如果还没有初始化，先初始化
+    # 如果还没有初始化（不应该发生，因为 register 已初始化），使用默认配置
     if _router_engine is None:
-        register(config)
+        from .router_engine import RouterEngine
+        memory_dir = os.path.join(os.path.dirname(__file__), "..", "memories")
+        memory_file = os.path.join(memory_dir, "MEMORY.md")
+        os.makedirs(memory_dir, exist_ok=True)
+        _router_engine = RouterEngine(
+            config=config,
+            memory_file=memory_file,
+            call_provider_func=None
+        )
 
     # 执行五层判断（同步封装）
     final_decision, reason, details = asyncio.run(
