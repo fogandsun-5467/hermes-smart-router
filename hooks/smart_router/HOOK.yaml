@@ -1,0 +1,4 @@
+name: smart_router
+description: "智能模型路由 Gateway Hook - 配合 Agent Plugin 实现真正的模型切换"
+events:
+  - agent:start

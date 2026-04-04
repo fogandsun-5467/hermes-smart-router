@@ -1,0 +1,24 @@
+# Smart Router 插件配置
+# 版本：v3.2
+
+# 高峰期配置
+peak_hours:
+  enabled: true
+  start: 14      # 开始时间（小时）
+  end: 18        # 结束时间（小时）
+  peak_threshold: 7  # 高于此分数的任务在高峰期也保留专家模型
+
+# 经验学习配置
+learning:
+  enabled: true
+  min_count: 3   # 形成经验的最小次数
+  memory_file: "memories/MEMORY.md"  # 经验存储文件
+
+# 模型配置
+models:
+  strong: "glm-5.1"      # 专家模型
+  cheap: "MiniMax-M2.7"  # 轻量模型
+
+# 日志配置
+logging:
+  level: "INFO"

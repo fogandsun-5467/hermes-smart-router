@@ -1,0 +1,2 @@
+# Smart Router Plugin Dependencies
+# 无额外依赖，使用 Python 标准库

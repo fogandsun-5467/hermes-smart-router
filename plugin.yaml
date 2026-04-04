@@ -1,0 +1,8 @@
+name: smart_router
+version: 3.2.0
+description: "智能模型路由插件 - 五层判断：meta快速 + session上下文 + 经验匹配 + LLM评分 + 高峰期守门员"
+author: Hermes User
+provides_tools: []
+provides_hooks:
+  - pre_llm_call
+requires_env: []
