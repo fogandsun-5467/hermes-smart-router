@@ -104,6 +104,64 @@ models:
 |------|----------|
 | v3.2 | 修复经验命中时记录暂存区等逻辑漏洞 |
 
+## 更新 Hermes 后的修复
+
+由于 `run_agent.py` 不在插件目录内，更新 Hermes 会覆盖该文件。需要重新添加 `post_llm_call` 返回值处理逻辑。
+
+### 需要修改的位置
+
+`hermes-agent/run_agent.py` 第 8599-8622 行（`run_one_turn` 方法末尾）
+
+### 修改内容
+
+在 `# Plugin hook: post_llm_call` 代码块中，找到：
+```python
+_post_results = _invoke_hook(
+    "post_llm_call",
+    ...
+)
+# Check if any plugin returned a modified response
+for r in _post_results:
+    if isinstance(r, dict) and r.get("modified_response"):
+        final_response = r["modified_response"]
+        break
+```
+
+如果这段检查 `modified_response` 的代码不存在，需要添加。完整代码块应如下：
+
+```python
+# Plugin hook: post_llm_call
+# Fired once per turn after the tool-calling loop completes.
+# Plugins can use this to persist conversation data (e.g. sync
+# to an external memory system) or modify the response by returning
+# a dict with a "modified_response" key.
+if final_response and not interrupted:
+    try:
+        from hermes_cli.plugins import invoke_hook as _invoke_hook
+        _post_results = _invoke_hook(
+            "post_llm_call",
+            session_id=self.session_id,
+            user_message=original_user_message,
+            assistant_response=final_response,
+            conversation_history=list(messages),
+            model=self.model,
+            platform=getattr(self, "platform", None) or "",
+        )
+        # Check if any plugin returned a modified response
+        for r in _post_results:
+            if isinstance(r, dict) and r.get("modified_response"):
+                final_response = r["modified_response"]
+                break
+    except Exception as exc:
+        logger.warning("post_llm_call hook failed: %s", exc)
+```
+
+### 验证
+
+修改后重启 Hermes，观察日志确认：
+- 响应开头应有 `[⚡]` 或 `[🧠]` 标识
+- 无 "post_llm_call hook failed" 警告
+
 ## License
 
 MIT
