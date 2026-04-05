@@ -36,11 +36,11 @@ META_FAST_PATTERNS = [
     r"把.*(代码|需求|报错|日志|信息).*(贴|发|给|丢|给我)",
     r"(把|将).*(代码|报错|信息).*(发|贴|给).*(看看|我看看|我看下|我看一眼)",
     # 选择问题（语言/技术选择）
-    r"(python|java|javascript|node|golang|rust|c\+\+|go|rust).(还是|或|或者)",
-    r"(哪个|什么).(语言|框架|技术)",
+    r"(python|java|javascript|node|golang|rust|c\+\+|go|rust)\s*(还是|或|或者)",
+    r"(哪个|什么)\s*(语言|框架|技术)",
     # 元级别问题
-    r"(你要|想要|准备).(写|搞|做).(哪块|什么|哪个).(编程|代码|项目)",
-    r"(帮我|给我).(看看|检查一下|看看这个|看看这个代码)",
+    r"(帮我|给我|帮我|给我).*(看看|检查一下|看看这个|看看这个代码|看看这个需求)",
+    r"(你要|想要|准备).*(写|搞|做).*(哪块|什么|哪个).*(编程|代码|项目)",
 ]
 
 # ============================================================================
@@ -56,8 +56,9 @@ STRONG_PATTERNS = [
     r"算法(实现|优化|设计)|排序|搜索|图论",
     r"并发|多线程|锁|同步|异步|队列",
     r"性能(优化|调优)|QPS|TPS|吞吐量",
+    r"优化(.*)?(性能|查询|SQL|数据库)",
     # 数据库
-    r"(数据库|表)设计|ER图|范式|索引优化|SQL优化",
+    r"(数据库|表)设计|ER图|范式|索引",
     r"分库分表|读写分离|主从复制|数据迁移",
     # 协议与网络
     r"TCP|UDP|HTTP|WebSocket|RPC|gRPC",
@@ -407,34 +408,29 @@ class RouterEngine:
     def get_routing_hint(self, final_decision: str, details: Dict[str, Any]) -> str:
         """
         生成路由提示，用于注入到 system prompt。
-        
-        规则：
-        - 首次调用：显示完整提示
-        - 同一模型：只显示emoji (🧠专家/⚡轻量)
-        - 切换模型：显示"当前任务已切换至xxx"
+
+        注意：模型标识现在由 post_llm_call 钩子直接插入，不再依赖 LLM。
+        此提示仅用于告知当前使用的模型，不要求 LLM 添加标识。
         """
         model_names = {
             "strong": "专家模型(glm-5.1)",
             "cheap": "轻量模型(MiniMax-M2.7)"
         }
-        
+
         current_model = model_names.get(final_decision, final_decision)
         emoji = "🧠" if final_decision == "strong" else "⚡"
-        
+
         if self._is_first_call:
             # 首次调用，显示完整提示
             self._is_first_call = False
             self._last_decision = final_decision
-            if final_decision == "strong":
-                return "🧠 【智能路由】当前任务复杂度较高，使用专家模型以获得最佳回答质量。"
-            else:
-                return "⚡ 【智能路由】当前任务相对简单，使用轻量模型即可高效回答。"
+            return f"【路由提示】当前使用{current_model}处理（{emoji}标识已由系统自动添加）。"
         
         if final_decision == self._last_decision:
-            # 同一模型，只显示emoji
-            return emoji
+            # 同一模型，只显示模型名称
+            return f"【路由提示】当前使用{current_model}处理。"
         else:
             # 切换模型
             prev_model = model_names.get(self._last_decision, self._last_decision)
             self._last_decision = final_decision
-            return f"🔄 【智能路由】当前任务已切换至{current_model}"
+            return f"【路由提示】当前任务已从{prev_model}切换至{current_model}。"
